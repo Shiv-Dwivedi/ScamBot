@@ -7,6 +7,18 @@ url_regex = r"(https?://[^\s]+)"
 
 from pyrogram import Client, filters
 
+def format_vt_stats(url, stats, malicious):
+    return (
+        f"{'⚠️ **Malicious Link Detected!**' if malicious else '✅ **Link Looks Safe!**'}\n\n"
+        f"🔗 [{url}]({url})\n\n"
+        f"📊 **VirusTotal Report:**\n"
+        f"🛑 Malicious: {stats.get('malicious', 0)}\n"
+        f"⚠️ Suspicious: {stats.get('suspicious', 0)}\n"
+        f"✅ Harmless: {stats.get('harmless', 0)}\n"
+        f"🕵️ Undetected: {stats.get('undetected', 0)}"
+    )
+
+
 @Client.on_message(filters.command("start"))
 async def start_handler(client, message):
     await message.reply(
@@ -21,24 +33,41 @@ async def start_handler(client, message):
     )
 
 
-@Client.on_message(filters.text )
+@Client.on_message(filters.text)
 async def auto_detect_handler(client, message):
     text = message.text
-    found_urls = re.findall(url_regex, text)
+    urls = re.findall(url_regex, text)
 
-    results = []
+    result_parts = []
 
-    # If there's a URL, check with VirusTotal
-    if found_urls:
-        for url in found_urls:
+    # Case 1: Only link
+    if urls and text.strip() == urls[0]:
+        url = urls[0]
+        vt_result = await check_url(url)
+        if vt_result["malicious"]:
+           result_parts.append(format_vt_stats(url, vt_result["stats"], vt_result["malicious"]))
+        else:
+            result_parts.append(f"✅ URL looks safe:\n🔗 {url}")
+
+    # Case 2: Text only (no link)
+    elif not urls:
+        scam_text, confidence = await analyze_text(text)
+        result_parts.append(f"**🕵️ Scam Analysis:**\n{scam_text}\n\n**Confidence:**{confidence}%")
+
+    # Case 3: Text + link(s)
+    else:
+        for url in urls:
             vt_result = await check_url(url)
             if vt_result["malicious"]:
-                results.append(f"⚠️ URL flagged as malicious:\n🔗 {url}\nStats: {vt_result['stats']}")
+                result_parts.append(format_vt_stats(url, vt_result["stats"], vt_result["malicious"]))
             else:
-                results.append(f"✅ URL looks safe:\n🔗 {url}")
+                result_parts.append(f"✅ URL looks safe:\n🔗 {url}")
 
-    # Scam analysis regardless of links
-    scam_analysis, confidence = await analyze_text(text)
-    results.append(f"🕵️ Scam Analysis:\n{scam_analysis}\n\nConfidence: {confidence}%")
+        scam_text, confidence = await analyze_text(text)
+        result_parts.append(f"**🕵️ Scam Analysis:**\n{scam_text}\n\n**Confidence: **{confidence}%")
 
-    await message.reply("\n\n".join(results[:5]))  # Avoid too much output
+    await message.reply(
+        "\n\n".join(result_parts[:5]),
+        disable_web_page_preview=True,
+    )
+
