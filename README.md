@@ -8,6 +8,10 @@ A smart Pyrogram-based Telegram bot that automatically detects scam messages and
 - 🔐 Scam analysis using Google Gemini
 - 🧪 URL safety check using VirusTotal
 
+## 🔍 Upcoming Features
+
+- /check - command to check scam message or url
+- Normal conversation with AI bot for Cybersecurity guidance
 
 ## 🚀 Getting Started
 
